@@ -148,19 +148,20 @@ docker compose --profile training run --rm morpheus_pipeline \
 
 | Pipeline | real |
 |---|---|
-| AE only | 1m 5.883s |
-| RAE only | 2m 5.055s |
-| Parallel (AE + RAE) | 1m 4.322s |
+| AE only | 1m 4.322s |
+| RAE only | 1m 5.883s |
+| Parallel (AE + RAE) | 2m 5.055s |
+| Sequential total (AE + RAE) | ~2m 10s |
 
 > **Note:** `user` and `sys` times are near zero (~0.1s) for all runs because PyTorch and the MRC runtime execute in C++ threads not tracked by the shell. `real` (wall clock time) is the only meaningful metric.
 
 ### Key Findings
 
-1. **RAE trains ~2× slower than AE** — residual blocks add a forward pass through the projection layer and skip connection at each encoder/decoder step.
+1. **AE and RAE train in similar time** — RAE (1m 6s) is only marginally slower than AE (1m 4s) at 1000 epochs, suggesting the skip-connection overhead per forward pass is small relative to total training cost.
 
-2. **Parallel pipeline completes faster than either model alone** — wall time (1m 4s) is less than both AE (1m 6s) and RAE (2m 5s) sequential runs, and substantially less than their sum (3m 11s). Fan-out allows both models to train concurrently on the same preprocessed data stream, bounding total wall time by the faster branch rather than their sum.
+2. **Parallel pipeline is slightly faster than sequential total** — parallel (2m 5s) vs. running AE then RAE back-to-back (~2m 10s), saving ~5 seconds. Fan-out avoids duplicating the data preprocessing stage.
 
-3. **CPU contention limits parallel gains** — on CPU, both branches compete for the same cores. The advantage would be more pronounced on GPU, where each branch can utilize separate CUDA streams.
+3. **Parallel is slower than either model alone** — on CPU, both branches compete for the same cores, so parallel wall time exceeds either individual run. The advantage is only realized when comparing against the sequential sum, not against a single model.
 
 ---
 
@@ -169,4 +170,10 @@ docker compose --profile training run --rm morpheus_pipeline \
 | File | Change |
 |---|---|
 | `examples/benchmark_engine/production/Dockerfile` | Fixed `WORKDIR`, `COPY`, `ENTRYPOINT` paths (previously pointed to `digital_fingerprinting`) |
-| `python/morpheus_benchmark_engine/setup.py` | Removed `versioneer` dependency; hardcoded version `0.1.0`; fixed `name` from `morpheus_dfp` to `morpheus_benchmark_engine` |
+| `python/morpheus_benchmark_engine/setup.py` | Removed `versioneer` dependency; hardcoded version `0.1.0`; fixed `name` from `morpheus_dfp` to `morpheus_benchmark_engine` (see note below) |
+
+### Note on hardcoded version
+
+`versioneer` was removed and the version hardcoded to `"0.1.0"` because `morpheus_benchmark_engine` is a local research package installed directly from the workspace via `pip install -e`. Version numbers are never published to PyPI or used for dependency resolution, and `versioneer` without git tags would return a garbage string like `0+unknown` anyway.
+
+**Caveat:** If this package is ever promoted to a proper release (published to PyPI, conda, or used as a versioned dependency by other packages), the hardcoded version must be replaced with a proper versioning scheme. With a hardcoded version, `pip install --upgrade morpheus_benchmark_engine` will do nothing if `"0.1.0"` is already installed, regardless of code changes.
