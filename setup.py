@@ -11,18 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# See the docstring in versioneer.py for instructions. Note that you must
-# re-run 'versioneer setup' after changing this section, and commit the
-# resulting files.
-
-import versioneer
 from setuptools import find_packages  # noqa: E402
 from setuptools import setup  # noqa: E402
 
 setup(
     name="morpheus_benchmark_engine",
-    version=versioneer.get_version(),  # pylint: disable=no-member
-    description="Morpheus Digital Finger Printing",
+    version="0.1.0",
+    description="Morpheus Benchmark Engine",
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Environment :: GPU :: NVIDIA CUDA",
@@ -41,5 +36,4 @@ setup(
     install_requires=[],
     license="Apache",
     python_requires='>=3.12, <4',
-    cmdclass=versioneer.get_cmdclass(),  # pylint: disable=no-member
 )
