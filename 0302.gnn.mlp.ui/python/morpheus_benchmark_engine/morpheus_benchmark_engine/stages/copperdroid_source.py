@@ -20,11 +20,11 @@ import mrc
 import pandas as pd
 
 from morpheus.config import Config
-from morpheus_benchmark_engine.utils import progress_tracker
 from morpheus.messages import ControlMessage
 from morpheus.messages import MessageMeta
 from morpheus.pipeline.single_output_source import SingleOutputSource
 from morpheus.pipeline.stage_schema import StageSchema
+from morpheus_benchmark_engine.utils import progress_tracker
 
 logger = logging.getLogger(f"morpheus.{__name__}")
 
@@ -46,7 +46,7 @@ class CopperDroidSource(SingleOutputSource):
         Name of the label column in the CSV.  Default ``"label"``.
     """
 
-    def __init__(self, c: Config, csv_path: str, label_column: str = "label"):
+    def __init__(self, c: Config, csv_path: str, label_column: str = "Class"):
         super().__init__(c)
         self._csv_path = csv_path
         self._label_column = label_column
@@ -76,19 +76,28 @@ class CopperDroidSource(SingleOutputSource):
             )
 
         n_samples = len(df)
-        n_cols = len(df.columns)
-        logger.info("Loaded %d samples, %d columns (including label)", n_samples, n_cols)
+        n_features = len(df.columns) - 1
+
+        # Log label distribution so unexpected values are immediately visible
+        label_counts = df[self._label_column].value_counts().to_dict()
+        logger.info(
+            "Loaded %d samples, %d features. Label '%s' distribution: %s",
+            n_samples, n_features, self._label_column, label_counts,
+        )
+
         progress_tracker.update(
             "source",
             status="completed",
-            message=f"Loaded {n_samples} samples, {n_cols - 1} features",
+            message=f"Loaded {n_samples} samples, {n_features} features",
         )
 
-        meta = MessageMeta(df)
+        # Store the raw pandas DataFrame directly in metadata to avoid the
+        # MessageMeta → cuDF → .to_pandas() round-trip that causes
+        # sklearn/PyTorch incompatibility.  An empty payload satisfies Morpheus.
         msg = ControlMessage()
-        msg.payload(meta)
+        msg.payload(MessageMeta(pd.DataFrame()))
+        msg.set_metadata("raw_df", df)
         msg.set_metadata("label_column", self._label_column)
-        msg.set_metadata("csv_path", self._csv_path)
 
         yield msg
 
